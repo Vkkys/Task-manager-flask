@@ -1,33 +1,58 @@
+
 from flask import Flask, request, jsonify
+from flask_sqlalchemy import SQLAlchemy
 
 app = Flask(__name__)
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///tasks.db'
+db = SQLAlchemy(app)
 
-# Dummy in-memory storage for tasks
-tasks = []
+# Task model
+class Task(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.String(100), nullable=False)
+    completed = db.Column(db.Boolean, default=False)
+
+# Create DB
+with app.app_context():
+    db.create_all()
 
 # Home route
-@app.route("/", methods=["GET"])
+@app.route('/')
 def home():
-    return "Welcome to the Task Manager API!", 200
+    return "Task Manager API is running!"
 
-# POST /tasks - create a new task
+# Get all tasks
+@app.route('/tasks', methods=['GET'])
+def get_tasks():
+    tasks = Task.query.all()
+    return jsonify([{'id': t.id, 'title': t.title, 'completed': t.completed} for t in tasks])
+
+
 @app.route("/tasks", methods=["POST"])
 def create_task():
     data = request.get_json()
+    # your logic to store task
 
-    if not data or 'title' not in data:
-        return jsonify({'error': 'Title is required'}), 400
 
-    title = data['title']
-    task = {"id": len(tasks) + 1, "title": title}
-    tasks.append(task)
+# Mark task complete
+@app.route('/tasks/<int:id>', methods=['PUT'])
+def complete_task(id):
+    task = Task.query.get(id)
+    if task:
+        task.completed = True
+        db.session.commit()
+        return jsonify({'message': 'Task marked as completed'})
+    return jsonify({'error': 'Task not found'}), 404
 
-    return jsonify({'message': 'Task added successfully', 'task': task}), 201
+# Delete task
+@app.route('/tasks/<int:id>', methods=['DELETE'])
+def delete_task(id):
+    task = Task.query.get(id)
+    if task:
+        db.session.delete(task)
+        db.session.commit()
+        return jsonify({'message': 'Task deleted'})
+    return jsonify({'error': 'Task not found'}), 404
 
-# GET /tasks - list all tasks
-@app.route("/tasks", methods=["GET"])
-def get_tasks():
-    return jsonify(tasks), 200
-
-if __name__ == "__main__":
+if __name__ == '__main__':
     app.run(debug=True)
